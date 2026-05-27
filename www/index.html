@@ -32,6 +32,7 @@ html,body{height:100%;overflow:hidden;background:#FFF8F0}
 .tool-btn{width:44px;height:44px;background:#f0f0f0;border:none;border-radius:12px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .tool-btn:active{background:#ddd}
 .tool-btn.selected{background:#FFE5C0;border:2px solid #E8830A}
+.tool-btn:disabled{opacity:0.3;cursor:default}
 
 /* ANIMAL NAME */
 .animal-name{text-align:center;font-family:'Georgia',serif;font-size:calc(13px * var(--fs));color:#bbb;padding:4px 0 0;letter-spacing:1px;text-transform:uppercase}
@@ -139,7 +140,19 @@ var ANIMALS = [
   {fr:'Dragon',  en:'Dragon',  file:'assets/dragon.jpg'},
   {fr:'Licorne', en:'Unicorn', file:'assets/licorne.jpg'},
   {fr:'Renard',  en:'Fox',     file:'assets/renard.jpg'},
-  {fr:'Lapin',   en:'Rabbit',  file:'assets/lapin.jpg'}
+  {fr:'Lapin',   en:'Rabbit',  file:'assets/lapin.jpg'},
+  {fr:'Tortue',   en:'Turtle',  file:'assets/tortue.jpg'},
+  {fr:'Singe',   en:'monkey',  file:'assets/singe.jpg'},
+  {fr:'Chat',   en:'Cat',  file:'assets/chat.jpg'},
+  {fr:'Triceratops',   en:'Triceratops',  file:'assets/triceratops.jpg'},
+  {fr:'Pigeon',   en:'Pigeon',  file:'assets/pigeon.jpg'},
+  {fr:'Mouton',   en:'Sheep',  file:'assets/mouton.jpg'},
+  {fr:'Dinosaure',   en:'Dinosaur',  file:'assets/dinosaure.jpg'},
+  {fr:'Giraphe',   en:'Giraffe',  file:'assets/giraphe.jpg'},
+  {fr:'Escargot',   en:'Snail',  file:'assets/escargot.jpg'},
+  {fr:'Poisson',   en:'Fish',  file:'assets/poisson.jpg'},
+  {fr:'Pingouin',   en:'Penguin',  file:'assets/pingouin.jpg'},
+  {fr:'Hibou',   en:'Owl',  file:'assets/hibou.jpg'},
 ];
 
 
@@ -150,6 +163,8 @@ function saveCanvas(idx){
 }
 
 function loadSaved(idx){
+  undoStack = [];
+  updateUndoBtn();
   var saved = localStorage.getItem('coloriage_'+idx);
   if(!saved) return false;
   var img = new Image();
@@ -172,6 +187,26 @@ var selectedTool = 'fill'; // fill ou eraser
 var canvas = document.getElementById('colorCanvas');
 var ctx = canvas.getContext('2d', {willReadFrequently:true});
 var originalImageData = null;
+var undoStack = [];
+var MAX_UNDO = 10;
+
+function pushUndo(){
+  undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  if(undoStack.length > MAX_UNDO) undoStack.shift();
+  updateUndoBtn();
+}
+
+function undo(){
+  if(undoStack.length === 0) return;
+  ctx.putImageData(undoStack.pop(), 0, 0);
+  saveCanvas(currentIdx);
+  updateUndoBtn();
+}
+
+function updateUndoBtn(){
+  var btn = document.getElementById('undoBtn');
+  if(btn) btn.disabled = undoStack.length === 0;
+}
 
 // ─── PALETTE ──────────────────────────────────────────────────────────────────
 function buildPalette(){
@@ -189,6 +224,17 @@ function buildPalette(){
     btn.addEventListener('click', function(){ selectColor(c); });
     row.appendChild(btn);
   });
+  // Bouton undo
+  var undoBtn = document.createElement('button');
+  undoBtn.className = 'tool-btn';
+  undoBtn.id = 'undoBtn';
+  undoBtn.textContent = '↩️';
+  undoBtn.title = 'Annuler';
+  undoBtn.disabled = true;
+  undoBtn.addEventListener('touchend', function(e){ e.preventDefault(); undo(); });
+  undoBtn.addEventListener('click', undo);
+  row.appendChild(undoBtn);
+
   // Bouton gomme
   var eraser = document.createElement('div');
   eraser.className = 'tool-btn' + (selectedTool==='eraser'?' selected':'');
@@ -223,7 +269,9 @@ function loadAnimal(idx){
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     // Charger coloriage sauvegardé par dessus
-    var saved = localStorage.getItem('coloriage_'+idx);
+    undoStack = [];
+  updateUndoBtn();
+  var saved = localStorage.getItem('coloriage_'+idx);
     if(saved){
       var savedImg = new Image();
       savedImg.onload = function(){ ctx.drawImage(savedImg, 0, 0); };
@@ -238,7 +286,7 @@ function loadAnimal(idx){
 }
 
 function resetCanvas(){
-  if(originalImageData){ ctx.putImageData(originalImageData, 0, 0); localStorage.removeItem('coloriage_'+currentIdx); }
+  if(originalImageData){ ctx.putImageData(originalImageData, 0, 0); localStorage.removeItem('coloriage_'+currentIdx); undoStack=[]; updateUndoBtn(); }
 }
 
 // ─── FLOOD FILL ───────────────────────────────────────────────────────────────
@@ -257,6 +305,7 @@ function colorMatch(data, pos, target, tolerance){
 }
 
 function floodFill(x, y, fillColor){
+  pushUndo();
   var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   var data = imgData.data;
   var w = canvas.width, h = canvas.height;
